@@ -4,16 +4,10 @@ import frontier.ske.text.not
 import frontier.skpc.util.*
 import frontier.skpc.value.Parameter
 import frontier.skpc.value.standard.ValueParameters.int
-import frontier.skpc.value.standard.ValueParameters.string
-import frontier.skpc.value.standard.ValueParameters.subject
-import frontier.skpc.value.standard.ValueParameters.subjectCollection
-import frontier.skpc.value.standard.ValueParameters.subjectOf
 import org.spongepowered.api.command.*
 import org.spongepowered.api.command.args.ArgumentParseException
 import org.spongepowered.api.command.args.CommandArgs
 import org.spongepowered.api.command.args.parsing.InputTokenizer
-import org.spongepowered.api.service.permission.PermissionService.SUBJECTS_GROUP
-import org.spongepowered.api.service.permission.Subject
 import org.spongepowered.api.text.Text
 import org.spongepowered.api.world.Location
 import org.spongepowered.api.world.World
@@ -260,21 +254,6 @@ class CommandLeaf<T>(val parent: CommandBranch<in T>, val executor: (T) -> Unit)
 }
 
 fun test() {
-    fun define(permission: String, subject: Subject, src: CommandSource) {
-        src.sendMessage(!"Defined permission $permission for ${subject.identifier}.")
-    }
-
-    val ap = CommandRoot("ap") {
-        ("group" permission "ap.group") / subjectOf(SUBJECTS_GROUP)("subject") then {
-            ("perm" permission "ap.group.perm") / string("permission") then {
-                ("define" permission "ap.group.perm.define") execute executor(::define)
-            }
-        }
-        subjectCollection("collection") / subject("subject") execute { (subject, collection, source) ->
-            CommandResult.success()
-        }
-    }
-
     val commandSum = CommandRoot("sum") {
         int("value1") / int("value2") execute { (value1, value2, source) ->
             source.sendMessage(!"$value1 + $value2 = ${value1 + value2}")
