@@ -40,30 +40,40 @@ sealed class CommandBranch<T> : CommandTree<T>() {
     override fun process(src: CommandSource, args: CommandArgs, arguments: T) {
         val snapshot = args.snapshot
 
+        // Check for sub commands first.
         val alias = args.next()
         val branch = branches[alias]
 
         if (branch != null) {
             return branch.process(src, args, arguments)
-        } else {
-            if (parameters.isEmpty() && leaf == null) {
-                throw args.createError(!"No child command found with the given alias.")
-            }
-
-            args.applySnapshot(snapshot)
         }
 
-        for (parameter in parameters) {
+        if (parameters.isEmpty() && leaf == null) {
+            throw args.createError(!"No child command found with the given alias.")
+        }
+
+        args.applySnapshot(snapshot)
+
+        // Try to parse parameters next.
+        val parameterIterator = parameters.iterator()
+        while (parameterIterator.hasNext()) {
+            val next = parameterIterator.next()
+
             val parsed = try {
-                parameter.value.parser(src, args, arguments)
+                next.value.parser(src, args, arguments)
             } catch (e: ArgumentParseException) {
-                args.applySnapshot(snapshot)
+                if (parameterIterator.hasNext()) {
+                    args.applySnapshot(snapshot)
+                } else {
+                    throw e
+                }
                 continue
             }
 
-            return parameter.process(src, args, RTuple(parsed, arguments))
+            return next.process(src, args, RTuple(parsed, arguments))
         }
 
+        // Finally try to execute the command.
         leaf?.process(src, args, arguments)
             ?: throw args.createError(!"No executor was found for this command.")
     }
