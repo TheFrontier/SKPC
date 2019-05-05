@@ -13,7 +13,6 @@ import org.spongepowered.api.world.Location
 import org.spongepowered.api.world.World
 import java.util.*
 import kotlin.collections.List
-import kotlin.collections.MutableList
 import kotlin.collections.arrayListOf
 import kotlin.collections.emptyList
 import kotlin.collections.hashMapOf
@@ -196,16 +195,16 @@ class CommandRoot(val aliases: Aliases) : CommandBranch<CommandSource>(),
     }
 
     override fun getSuggestions(source: CommandSource, arguments: String,
-                                targetPosition: Location<World>?): MutableList<String> {
-        TODO("not implemented")
+                                targetPosition: Location<World>?): List<String> {
+        return emptyList()
     }
 
     override fun getShortDescription(source: CommandSource): Optional<Text> {
-        TODO("not implemented")
+        return Optional.empty()
     }
 
     override fun getHelp(source: CommandSource): Optional<Text> {
-        TODO("not implemented")
+        return Optional.empty()
     }
 
     override fun getUsage(source: CommandSource): Text {
