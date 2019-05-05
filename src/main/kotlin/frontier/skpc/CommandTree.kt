@@ -116,6 +116,9 @@ sealed class CommandBranch<T> : CommandTree<T>() {
     infix fun Aliases.execute(executor: (T) -> Unit): CommandLeaf<T> =
         this@CommandBranch / this@execute execute executor
 
+    inline infix fun Aliases.then(init: CommandChild<T>.() -> Unit) =
+        (this@CommandBranch / this@then).apply(init)
+
     operator fun String.div(aliases: Aliases): CommandChild<T> =
         this@CommandBranch / this@div / aliases
 
@@ -130,6 +133,9 @@ sealed class CommandBranch<T> : CommandTree<T>() {
 
     infix fun String.execute(executor: (T) -> Unit): CommandLeaf<T> =
         this@CommandBranch / this@execute execute executor
+
+    inline infix fun String.then(init: CommandChild<T>.() -> Unit) =
+        (this@CommandBranch / this@then).apply(init)
 
     operator fun List<String>.div(aliases: Aliases): CommandChild<T> =
         this@CommandBranch / this@div / aliases
@@ -146,6 +152,9 @@ sealed class CommandBranch<T> : CommandTree<T>() {
     infix fun List<String>.execute(executor: (T) -> Unit): CommandLeaf<T> =
         this@CommandBranch / this@execute execute executor
 
+    inline infix fun List<String>.then(init: CommandChild<T>.() -> Unit) =
+        (this@CommandBranch / this@then).apply(init)
+
     operator fun <V> Parameter<T, V>.div(aliases: Aliases): CommandChild<RTuple<V, T>> =
         this@CommandBranch / this@div / aliases
 
@@ -161,6 +170,9 @@ sealed class CommandBranch<T> : CommandTree<T>() {
 
     infix fun <V> Parameter<T, V>.execute(executor: (RTuple<V, T>) -> Unit): CommandLeaf<RTuple<V, T>> =
         this@CommandBranch / this@execute execute executor
+
+    inline infix fun <V> Parameter<T, V>.then(init: CommandParameter<T, V>.() -> Unit) =
+        (this@CommandBranch / this@then).apply(init)
 }
 
 class CommandRoot(val aliases: Aliases) : CommandBranch<CommandSource>(),
