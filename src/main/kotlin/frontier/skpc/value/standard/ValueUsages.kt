@@ -5,24 +5,24 @@ import org.spongepowered.api.text.Text
 
 object ValueUsages {
 
-    val empty: ValueUsage<Any?> = { _, _, _ ->
+    val empty: ValueUsage = { _, _ ->
         Text.EMPTY
     }
 
-    val identity: ValueUsage<Any?> = { _, key, _ ->
+    val identity: ValueUsage = { _, key ->
         key
     }
 
-    val single: ValueUsage<Any?> = { _, key, _ ->
+    val single: ValueUsage = { _, key ->
         Text.of("<", key, ">")
     }
 
-    val variadic: ValueUsage<Any?> = { _, key, _ ->
+    val variadic: ValueUsage = { _, key ->
         Text.of("<", key, "...>")
     }
 
-    inline fun <P> optional(crossinline usage: ValueUsage<P>): ValueUsage<P> =
-        { src, key, previous ->
-            Text.of("[", usage(src, key, previous), "]")
+    inline fun optional(crossinline usage: ValueUsage): ValueUsage =
+        { src, key ->
+            Text.of("[", usage(src, key), "]")
         }
 }

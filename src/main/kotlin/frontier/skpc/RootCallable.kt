@@ -44,6 +44,6 @@ class RootCallable(
     }
 
     override fun getUsage(source: CommandSource): Text {
-        return root.getShallowUsage(source, source)
+        return root.getShallowUsage(source)
     }
 }

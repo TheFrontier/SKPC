@@ -27,34 +27,60 @@ sealed class CommandTree<T> {
 
         fun toCallable(): CommandCallable = RootCallable(this)
 
-        override fun getDeepUsage(src: CommandSource, previous: CommandSource): Text {
+        override fun getDeepUsage(src: CommandSource): Text {
             return Text.of()
+        }
+
+        fun getShallowUsage(src: CommandSource): Text {
+            val builder = Text.builder()
+
+            if (children.isNotEmpty()) {
+                builder.append(children.map { (alias, _) -> !alias }.joinWith(!"|"))
+
+                if (arguments.size == 1) {
+                    builder.append(!"|")
+                }
+            }
+
+            if (arguments.size == 1) {
+                val sequence = generateSequence<Argument<*, *>>(arguments.first()) {
+                    if (it.arguments.size == 1) {
+                        it.arguments.first()
+                    } else {
+                        null
+                    }
+                }.map { it.parameter.usage(src, it.parameter.key) }
+
+                builder.append(sequence.asIterable().joinWith(!" "))
+            }
+
+            return builder.build()
         }
     }
 
     class Child<T>(val parent: CommandTree<T>, val aliases: Aliases) : CommandTree<T>() {
 
-        override fun getDeepUsage(src: CommandSource, previous: T): Text {
-            val parentUsage = parent.getDeepUsage(src, previous)
+        override fun getDeepUsage(src: CommandSource): Text {
+            val parentUsage = parent.getDeepUsage(src)
 
             return if (parentUsage.isEmpty) {
                 Text.of(aliases.first())
             } else {
-                Text.of(parent.getDeepUsage(src, previous), " ", aliases.first())
+                Text.of(parent.getDeepUsage(src), " ", aliases.first())
             }
         }
     }
 
     class Argument<T, V>(val parent: CommandTree<T>, val parameter: Parameter<T, V>) : CommandTree<RTuple<V, T>>() {
 
-        override fun getDeepUsage(src: CommandSource, previous: RTuple<V, T>): Text {
-            val parentUsage = parent.getDeepUsage(src, previous.tail)
+        override fun getDeepUsage(src: CommandSource): Text {
+            val parentUsage = parent.getDeepUsage(src)
 
             return if (parentUsage.isEmpty) {
-                Text.of(parameter.usage(src, parameter.key, previous.tail))
+                Text.of(parameter.usage(src, parameter.key))
             } else {
                 Text.of(
-                    parent.getDeepUsage(src, previous.tail), " ", parameter.usage(src, parameter.key, previous.tail)
+                    parent.getDeepUsage(src), " ", parameter.usage(src, parameter.key)
                 )
             }
         }
@@ -76,7 +102,7 @@ sealed class CommandTree<T> {
             if (child != null) {
                 return child.traverse(src, args, previous)
             } else if (arguments.isEmpty() && executor == null) {
-                throw args.createError(!"Unknown subcommand: $alias").withUsage(this.getDeepUsage(src, previous))
+                throw args.createError(!"Unknown subcommand: $alias").withUsage(this.getDeepUsage(src))
             }
         }
 
@@ -95,12 +121,12 @@ sealed class CommandTree<T> {
                     args.applySnapshot(snapshot)
                     continue
                 } else {
-                    val deep = this.getDeepUsage(src, previous)
+                    val deep = this.getDeepUsage(src)
 
                     if (!deep.isEmpty) {
-                        throw e.withUsage(deep + " " + argument.parameter.usage(src, argument.parameter.key, previous))
+                        throw e.withUsage(deep + " " + argument.parameter.usage(src, argument.parameter.key))
                     } else {
-                        throw e.withUsage(argument.parameter.usage(src, argument.parameter.key, previous))
+                        throw e.withUsage(argument.parameter.usage(src, argument.parameter.key))
                     }
                 }
             }
@@ -111,7 +137,7 @@ sealed class CommandTree<T> {
         // If all else fails, try to execute the command.
         if (args.hasNext()) {
             args.next()
-            throw args.createError(!"Too many arguments!").withUsage(this.getDeepUsage(src, previous))
+            throw args.createError(!"Too many arguments!").withUsage(this.getDeepUsage(src))
         }
 
         val exec = executor
@@ -119,7 +145,7 @@ sealed class CommandTree<T> {
             return exec(previous)
         } else {
             throw args.createError(!"No executor found for this subcommand.").withUsage(
-                this.getDeepUsage(src, previous)
+                this.getDeepUsage(src)
             )
         }
     }
@@ -128,23 +154,7 @@ sealed class CommandTree<T> {
         return emptyList()
     }
 
-    fun getShallowUsage(src: CommandSource, previous: T): Text {
-        val builder = Text.builder()
-
-        if (children.isNotEmpty()) {
-            builder.append(children.map { (alias, _) -> !alias }.joinWith(!"|"))
-
-            if (arguments.isNotEmpty()) {
-                builder.append(!"|")
-            }
-        }
-
-        builder.append(arguments.map { it.parameter.usage(src, it.parameter.key, previous) }.joinWith(!"|"))
-
-        return builder.build()
-    }
-
-    abstract fun getDeepUsage(src: CommandSource, previous: T): Text
+    abstract fun getDeepUsage(src: CommandSource): Text
 
     @PublishedApi
     internal fun makeChild(aliases: Aliases): Child<T> {
