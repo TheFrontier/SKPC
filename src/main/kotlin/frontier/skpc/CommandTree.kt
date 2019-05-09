@@ -193,6 +193,10 @@ sealed class CommandTree<T> {
         return this@CommandTree.makeChild(this@div).makeArgument(parameter)
     }
 
+    infix fun Aliases.execute(executor: CommandValueExecutor<in T>) {
+        this@CommandTree.makeChild(this@execute).execute(executor)
+    }
+
     inline infix fun Aliases.expand(block: Child<T>.() -> Unit) {
         this@CommandTree.makeChild(this@expand).apply(block)
     }
@@ -211,6 +215,10 @@ sealed class CommandTree<T> {
 
     operator fun <V> String.div(parameter: Parameter<T, V>): Argument<T, V> {
         return this@CommandTree.makeChild(this@div).makeArgument(parameter)
+    }
+
+    infix fun String.execute(executor: CommandValueExecutor<in T>) {
+        this@CommandTree.makeChild(this@execute).execute(executor)
     }
 
     inline infix fun String.expand(block: Child<T>.() -> Unit) {
@@ -233,6 +241,10 @@ sealed class CommandTree<T> {
         return this@CommandTree.makeChild(this@div).makeArgument(parameter)
     }
 
+    infix fun List<String>.execute(executor: CommandValueExecutor<in T>) {
+        this@CommandTree.makeChild(this@execute).execute(executor)
+    }
+
     inline infix fun List<String>.expand(block: Child<T>.() -> Unit) {
         this@CommandTree.makeChild(this@expand).apply(block)
     }
@@ -251,6 +263,10 @@ sealed class CommandTree<T> {
 
     operator fun <V, W> Parameter<T, V>.div(parameter: Parameter<RTuple<V, T>, W>): Argument<RTuple<V, T>, W> {
         return this@CommandTree.makeArgument(this@div).makeArgument(parameter)
+    }
+
+    infix fun <V> Parameter<T, V>.execute(executor: CommandValueExecutor<in RTuple<V, T>>) {
+        this@CommandTree.makeArgument(this@execute).execute(executor)
     }
 
     inline infix fun <V> Parameter<T, V>.expand(block: Argument<T, V>.() -> Unit) {
