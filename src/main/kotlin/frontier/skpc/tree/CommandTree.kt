@@ -202,7 +202,7 @@ class CommandRoot(val aliases: Aliases) : CommandBranch<CommandSource>(), Comman
     }
 
     override fun testPermission(source: CommandSource): Boolean {
-        return aliases.permission != null && source.hasPermission(aliases.permission)
+        return aliases.permission == null || source.hasPermission(aliases.permission)
     }
 
     override fun getSuggestions(source: CommandSource, arguments: String,
