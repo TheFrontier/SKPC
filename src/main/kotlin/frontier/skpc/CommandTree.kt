@@ -76,7 +76,7 @@ sealed class CommandTree<T> {
             if (child != null) {
                 return child.traverse(src, args, previous)
             } else if (arguments.isEmpty() && executor == null) {
-                throw args.createError(!"Unknown subcommand: $alias")
+                throw args.createError(!"Unknown subcommand: $alias").withUsage(this.getDeepUsage(src, previous))
             }
         }
 
@@ -111,14 +111,16 @@ sealed class CommandTree<T> {
         // If all else fails, try to execute the command.
         if (args.hasNext()) {
             args.next()
-            throw args.createError(!"Too many arguments!")
+            throw args.createError(!"Too many arguments!").withUsage(this.getDeepUsage(src, previous))
         }
 
         val exec = executor
         if (exec != null) {
             return exec(previous)
         } else {
-            throw args.createError(!"No executor found for this subcommand.")
+            throw args.createError(!"No executor found for this subcommand.").withUsage(
+                this.getDeepUsage(src, previous)
+            )
         }
     }
 
