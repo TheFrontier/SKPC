@@ -146,6 +146,7 @@ sealed class CommandTree<T> {
 
     abstract fun getDeepUsage(src: CommandSource, previous: T): Text
 
+    @PublishedApi
     internal fun makeChild(aliases: Aliases): Child<T> {
         val child = Child(this, aliases)
         for (alias in aliases) {
@@ -154,11 +155,14 @@ sealed class CommandTree<T> {
         return child
     }
 
+    @PublishedApi
     internal fun makeChild(alias: String): Child<T> = makeChild(Aliases(alias))
 
+    @PublishedApi
     internal fun makeChild(aliases: List<String>): Child<T> = makeChild(Aliases(aliases))
 
     @Suppress("UNCHECKED_CAST")
+    @PublishedApi
     internal fun <V> makeArgument(parameter: Parameter<T, V>): Argument<T, V> {
         val argument = Argument(this, parameter)
         arguments += argument as Argument<T, Any?>
@@ -185,6 +189,10 @@ sealed class CommandTree<T> {
         return this@CommandTree.makeChild(this@div).makeArgument(parameter)
     }
 
+    inline infix fun Aliases.expand(block: Child<T>.() -> Unit) {
+        this@CommandTree.makeChild(this@expand).apply(block)
+    }
+
     operator fun String.div(aliases: Aliases): Child<T> {
         return this@CommandTree.makeChild(this@div).makeChild(aliases)
     }
@@ -199,6 +207,10 @@ sealed class CommandTree<T> {
 
     operator fun <V> String.div(parameter: Parameter<T, V>): Argument<T, V> {
         return this@CommandTree.makeChild(this@div).makeArgument(parameter)
+    }
+
+    inline infix fun String.expand(block: Child<T>.() -> Unit) {
+        this@CommandTree.makeChild(this@expand).apply(block)
     }
 
     operator fun List<String>.div(aliases: Aliases): Child<T> {
@@ -217,6 +229,10 @@ sealed class CommandTree<T> {
         return this@CommandTree.makeChild(this@div).makeArgument(parameter)
     }
 
+    inline infix fun List<String>.expand(block: Child<T>.() -> Unit) {
+        this@CommandTree.makeChild(this@expand).apply(block)
+    }
+
     operator fun <V> Parameter<T, V>.div(aliases: Aliases): Child<RTuple<V, T>> {
         return this@CommandTree.makeArgument(this@div).makeChild(aliases)
     }
@@ -231,5 +247,9 @@ sealed class CommandTree<T> {
 
     operator fun <V, W> Parameter<T, V>.div(parameter: Parameter<RTuple<V, T>, W>): Argument<RTuple<V, T>, W> {
         return this@CommandTree.makeArgument(this@div).makeArgument(parameter)
+    }
+
+    inline infix fun <V> Parameter<T, V>.expand(block: Argument<T, V>.() -> Unit) {
+        this@CommandTree.makeArgument(this@expand).apply(block)
     }
 }
