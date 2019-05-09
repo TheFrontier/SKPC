@@ -173,6 +173,10 @@ sealed class CommandTree<T> {
         this.executor = executor
     }
 
+    inline infix fun expand(block: CommandTree<T>.() -> Unit) {
+        this.apply(block)
+    }
+
     operator fun Aliases.div(aliases: Aliases): Child<T> {
         return this@CommandTree.makeChild(this@div).makeChild(aliases)
     }
