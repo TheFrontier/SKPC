@@ -60,9 +60,9 @@ sealed class CommandTree<T> {
         }
     }
 
-    private val children = HashMap<String, Child<T>>()
-    private val arguments = ArrayList<Argument<T, in Any?>>()
-    private var executor: CommandValueExecutor<in T>? = null
+    internal val children = HashMap<String, Child<T>>()
+    internal val arguments = ArrayList<Argument<T, in Any?>>()
+    internal var executor: CommandValueExecutor<in T>? = null
 
     fun traverse(src: CommandSource, args: CommandArgs, previous: T): CommandResult {
         val snapshot = args.snapshot
@@ -109,8 +109,8 @@ sealed class CommandTree<T> {
         }
 
         // If all else fails, try to execute the command.
-
         if (args.hasNext()) {
+            args.next()
             throw args.createError(!"Too many arguments!")
         }
 
