@@ -1,6 +1,6 @@
 package frontier.skpc
 
-data class Aliases(val aliases: List<String>, val permission: String? = null) {
+data class Aliases(val aliases: List<String>, val permission: String? = null) : List<String> by aliases {
     constructor(vararg aliases: String, permission: String? = null) : this(aliases.toList(), permission)
 }
 

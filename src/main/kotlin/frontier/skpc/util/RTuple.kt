@@ -1,5 +1,8 @@
 package frontier.skpc.util
 
+/**
+ * A right-recursive expanding tuple type.
+ */
 class RTuple<out A, out B> private constructor(val head: A, val tail: B) {
 
     companion object {

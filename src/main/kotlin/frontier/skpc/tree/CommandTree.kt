@@ -1,6 +1,7 @@
-package frontier.skpc
+package frontier.skpc.tree
 
 import frontier.ske.text.not
+import frontier.skpc.Aliases
 import frontier.skpc.util.*
 import frontier.skpc.value.Parameter
 import frontier.skpc.value.standard.ValueParameters.int
@@ -15,6 +16,7 @@ import java.util.*
 import kotlin.collections.List
 import kotlin.collections.arrayListOf
 import kotlin.collections.emptyList
+import kotlin.collections.first
 import kotlin.collections.hashMapOf
 import kotlin.collections.listOf
 import kotlin.collections.set
@@ -23,32 +25,29 @@ import kotlin.collections.toList
 sealed class CommandTree<in T> {
 
     @Throws(CommandException::class)
-    abstract fun process(src: CommandSource, args: CommandArgs, arguments: T)
-
-    abstract fun complete(src: CommandSource, args: CommandArgs, arguments: T): List<String>
-
-    abstract fun getUsage(src: CommandSource, builder: Text.Builder)
+    abstract fun traverse(src: CommandSource, args: CommandArgs, arguments: T)
 }
 
 sealed class CommandBranch<T> : CommandTree<T>() {
 
-    protected val branches = hashMapOf<String, CommandBranch<T>>()
+    protected val children = hashMapOf<String, CommandChild<T>>()
     protected val parameters = arrayListOf<CommandParameter<T, Any?>>()
     private var leaf: CommandLeaf<T>? = null
 
-    override fun process(src: CommandSource, args: CommandArgs, arguments: T) {
+    override fun traverse(src: CommandSource, args: CommandArgs, arguments: T) {
         val snapshot = args.snapshot
 
         // Check for sub commands first.
         val alias = args.next()
-        val branch = branches[alias]
+        val branch = children[alias]
 
         if (branch != null) {
-            return branch.process(src, args, arguments)
+            return branch.traverse(src, args, arguments)
         }
 
-        if (parameters.isEmpty() && leaf == null) {
+        if (parameters.isEmpty()) {
             throw args.createError(!"No child command found with the given alias.")
+                .withUsage(getDeepUsage(src, arguments))
         }
 
         args.applySnapshot(snapshot)
@@ -64,39 +63,40 @@ sealed class CommandBranch<T> : CommandTree<T>() {
                 if (parameterIterator.hasNext()) {
                     args.applySnapshot(snapshot)
                 } else {
-                    throw e
+                    throw e.withUsage(getDeepUsage(src, arguments))
                 }
                 continue
             }
 
-            return next.process(src, args, RTuple(parsed, arguments))
+            return next.traverse(src, args, RTuple(parsed, arguments))
         }
 
         // Finally try to execute the command.
-        leaf?.process(src, args, arguments)
+        leaf?.traverse(src, args, arguments)
             ?: throw args.createError(!"No executor was found for this command.")
+                .withUsage(getDeepUsage(src, arguments))
     }
 
-    override fun complete(src: CommandSource, args: CommandArgs, arguments: T): List<String> {
-        TODO()
+    fun complete(src: CommandSource, args: CommandArgs, arguments: T): List<String> {
+        return emptyList()
     }
 
-    override fun getUsage(src: CommandSource, builder: Text.Builder) {
-        TODO()
-    }
+    abstract fun getDeepUsage(src: CommandSource, arguments: T): Text
 
     operator fun div(aliases: Aliases): CommandChild<T> =
-        CommandChild(this, aliases).also { this.branches[aliases.aliases] = it }
+        CommandChild(this, aliases).also { this.children[aliases.aliases] = it }
 
     operator fun div(alias: String): CommandChild<T> =
-        CommandChild(this, Aliases(listOf(alias))).also { this.branches[alias] = it }
+        CommandChild(this, Aliases(listOf(alias))).also { this.children[alias] = it }
 
     operator fun div(aliases: List<String>): CommandChild<T> =
-        CommandChild(this, Aliases(aliases)).also { this.branches[aliases] = it }
+        CommandChild(this, Aliases(aliases)).also { this.children[aliases] = it }
 
     @Suppress("UNCHECKED_CAST")
     operator fun <V> div(parameter: Parameter<T, V>): CommandParameter<T, V> =
-        CommandParameter(this, parameter).also { this.parameters.add(it as CommandParameter<T, Any?>) }
+        CommandParameter(
+            this, parameter
+        ).also { this.parameters.add(it as CommandParameter<T, Any?>) }
 
     infix fun execute(executor: (T) -> Unit): CommandLeaf<T> =
         CommandLeaf(this, executor).also { this.leaf = it }
@@ -175,8 +175,7 @@ sealed class CommandBranch<T> : CommandTree<T>() {
         (this@CommandBranch / this@then).apply(init)
 }
 
-class CommandRoot(val aliases: Aliases) : CommandBranch<CommandSource>(),
-    CommandCallable {
+class CommandRoot(val aliases: Aliases) : CommandBranch<CommandSource>(), CommandCallable {
 
     private val tokenizer = InputTokenizer.quotedStrings(false)
 
@@ -197,7 +196,7 @@ class CommandRoot(val aliases: Aliases) : CommandBranch<CommandSource>(),
 
         val args = CommandArgs(arguments, tokenizer.tokenize(arguments, false))
 
-        process(source, args, source)
+        traverse(source, args, source)
 
         return CommandResult.success()
     }
@@ -208,7 +207,8 @@ class CommandRoot(val aliases: Aliases) : CommandBranch<CommandSource>(),
 
     override fun getSuggestions(source: CommandSource, arguments: String,
                                 targetPosition: Location<World>?): List<String> {
-        return emptyList()
+        val args = CommandArgs(arguments, tokenizer.tokenize(arguments, true))
+        return complete(source, args, source)
     }
 
     override fun getShortDescription(source: CommandSource): Optional<Text> {
@@ -222,7 +222,7 @@ class CommandRoot(val aliases: Aliases) : CommandBranch<CommandSource>(),
     override fun getUsage(source: CommandSource): Text {
         val builder = Text.builder()
 
-        val aliases = branches.keys.iterator()
+        val aliases = children.keys.iterator()
         val params = parameters.iterator()
 
         while (aliases.hasNext()) {
@@ -246,12 +246,20 @@ class CommandRoot(val aliases: Aliases) : CommandBranch<CommandSource>(),
 
         return builder.build()
     }
+
+    override fun getDeepUsage(src: CommandSource, arguments: CommandSource): Text {
+        return Text.of(aliases.first())
+    }
 }
 
 class CommandChild<T>(val parent: CommandBranch<in T>, val aliases: Aliases) : CommandBranch<T>() {
 
     inline infix fun then(init: CommandChild<T>.() -> Unit): CommandChild<T> =
         this.apply(init)
+
+    override fun getDeepUsage(src: CommandSource, arguments: T): Text {
+        return Text.of(parent.getDeepUsage(src, arguments), " ", aliases.first())
+    }
 }
 
 class CommandParameter<T, V>(val parent: CommandBranch<in T>, val value: Parameter<T, V>) :
@@ -259,19 +267,17 @@ class CommandParameter<T, V>(val parent: CommandBranch<in T>, val value: Paramet
 
     inline infix fun then(init: CommandParameter<T, V>.() -> Unit): CommandParameter<T, V> =
         this.apply(init)
+
+    override fun getDeepUsage(src: CommandSource, arguments: RTuple<V, T>): Text {
+        return Text.of(parent.getDeepUsage(src, arguments.tail), " ", value.usage(src, value.key, arguments.tail))
+    }
 }
 
 class CommandLeaf<T>(val parent: CommandBranch<in T>, val executor: (T) -> Unit) : CommandTree<T>() {
 
-    override fun process(src: CommandSource, args: CommandArgs, arguments: T) {
+    override fun traverse(src: CommandSource, args: CommandArgs, arguments: T) {
         executor(arguments)
     }
-
-    override fun complete(src: CommandSource, args: CommandArgs, arguments: T): List<String> {
-        return emptyList()
-    }
-
-    override fun getUsage(src: CommandSource, builder: Text.Builder) {}
 }
 
 fun test() {
