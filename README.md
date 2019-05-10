@@ -40,6 +40,18 @@ Sponge.getCommandManager().register(plugin, command.toCallable(), command.aliase
 [arven-core](https://github.com/Arvenwood/arven-core) shades SKPC so you don't have to!
 Simply put `arven-core` as a dependency in your @Plugin annotation, and have users download it when downloading your plugin.
 
+```kotlin
+repositories {
+    maven {
+        setUrl("https://jitpack.io")
+    }
+}
+
+dependencies {
+    implementation("com.github.Arvenwood:arven-core:<current version>")
+}
+```
+
 ### Gradle (Kotlin DSL)
 
 ```kotlin
