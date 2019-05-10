@@ -20,7 +20,7 @@ class TreeCommandException(wrapped: CommandException,
             TextColors.RED, super.getText() ?: Text.EMPTY, "\n\n",
             TextColors.RED, "Usage: ", TextColors.YELLOW, "/", usageToRoot(src, tree), " ", argumentsUsage(src, tree),
             "\n",
-            TextColors.RED, "Subcommands: ", listSubcommands(tree)
+            TextColors.RED, "Subcommands: ", listSubcommands(tree).takeUnless { it.isEmpty } ?: "<empty>"
         )
     }
 
