@@ -3,9 +3,8 @@ package frontier.skpc
 import frontier.ske.java.util.unwrap
 import frontier.ske.text.joinWith
 import frontier.ske.text.not
-import frontier.ske.text.plus
 import frontier.skpc.util.RTuple
-import frontier.skpc.util.withUsage
+import frontier.skpc.util.wrap
 import frontier.skpc.value.Parameter
 import org.spongepowered.api.command.CommandCallable
 import org.spongepowered.api.command.CommandResult
@@ -26,10 +25,6 @@ sealed class CommandTree<T> {
                 this(Aliases(aliases, permission = permission))
 
         fun toCallable(): CommandCallable = RootCallable(this)
-
-        override fun getDeepUsage(src: CommandSource): Text {
-            return Text.of()
-        }
 
         fun getShallowUsage(src: CommandSource): Text {
             val builder = Text.builder()
@@ -58,33 +53,9 @@ sealed class CommandTree<T> {
         }
     }
 
-    class Child<T>(val parent: CommandTree<T>, val aliases: Aliases) : CommandTree<T>() {
+    class Child<T>(val parent: CommandTree<T>, val aliases: Aliases) : CommandTree<T>()
 
-        override fun getDeepUsage(src: CommandSource): Text {
-            val parentUsage = parent.getDeepUsage(src)
-
-            return if (parentUsage.isEmpty) {
-                Text.of(aliases.first())
-            } else {
-                Text.of(parent.getDeepUsage(src), " ", aliases.first())
-            }
-        }
-    }
-
-    class Argument<T, V>(val parent: CommandTree<T>, val parameter: Parameter<T, V>) : CommandTree<RTuple<V, T>>() {
-
-        override fun getDeepUsage(src: CommandSource): Text {
-            val parentUsage = parent.getDeepUsage(src)
-
-            return if (parentUsage.isEmpty) {
-                Text.of(parameter.usage(src, parameter.key))
-            } else {
-                Text.of(
-                    parent.getDeepUsage(src), " ", parameter.usage(src, parameter.key)
-                )
-            }
-        }
-    }
+    class Argument<T, V>(val parent: CommandTree<T>, val parameter: Parameter<T, V>) : CommandTree<RTuple<V, T>>()
 
     internal val children = HashMap<String, Child<T>>()
     internal val arguments = ArrayList<Argument<T, in Any?>>()
@@ -102,9 +73,11 @@ sealed class CommandTree<T> {
             if (child != null) {
                 return child.traverse(src, args, previous)
             } else if (arguments.isEmpty() && executor == null) {
-                throw args.createError(!"Unknown subcommand: $alias").withUsage(this.getDeepUsage(src))
+                throw args.createError(!"Unknown subcommand: $alias").wrap(src, this)
             }
-        }
+        } else if (arguments.isEmpty() && executor == null) {
+            throw args.createError(!"You must specify a subcommand.").wrap(src, this)
+        } else if (arguments.isNotEmpty())
 
         args.applySnapshot(snapshot)
 
@@ -121,13 +94,7 @@ sealed class CommandTree<T> {
                     args.applySnapshot(snapshot)
                     continue
                 } else {
-                    val deep = this.getDeepUsage(src)
-
-                    if (!deep.isEmpty) {
-                        throw e.withUsage(deep + " " + argument.parameter.usage(src, argument.parameter.key))
-                    } else {
-                        throw e.withUsage(argument.parameter.usage(src, argument.parameter.key))
-                    }
+                    throw e.wrap(src, this)
                 }
             }
 
@@ -137,24 +104,20 @@ sealed class CommandTree<T> {
         // If all else fails, try to execute the command.
         if (args.hasNext()) {
             args.next()
-            throw args.createError(!"Too many arguments!").withUsage(this.getDeepUsage(src))
+            throw args.createError(!"Too many arguments!").wrap(src, this)
         }
 
         val exec = executor
         if (exec != null) {
             return exec(previous)
         } else {
-            throw args.createError(!"No executor found for this subcommand.").withUsage(
-                this.getDeepUsage(src)
-            )
+            throw args.createError(!"No executor found for this subcommand.").wrap(src, this)
         }
     }
 
     fun complete(src: CommandSource, args: CommandArgs, previous: T): List<String> {
         return emptyList()
     }
-
-    abstract fun getDeepUsage(src: CommandSource): Text
 
     @PublishedApi
     internal fun makeChild(aliases: Aliases): Child<T> {
