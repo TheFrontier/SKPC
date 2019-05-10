@@ -1,17 +1,11 @@
 package frontier.skpc.value.standard
 
-import frontier.ske.gameRegistry
-import frontier.ske.getType
-import frontier.ske.java.lang.*
-import frontier.ske.java.util.unwrap
-import frontier.ske.plugin.toPluginContainer
-import frontier.ske.service.require
-import frontier.ske.serviceManager
-import frontier.ske.text.not
+import frontier.skpc.util.RTuple
 import frontier.skpc.value.IValueParser
 import frontier.skpc.value.ValueParser
 import frontier.skpc.value.parser
 import org.spongepowered.api.CatalogType
+import org.spongepowered.api.Sponge
 import org.spongepowered.api.command.CommandPermissionException
 import org.spongepowered.api.command.CommandSource
 import org.spongepowered.api.command.args.ArgumentParseException
@@ -21,6 +15,8 @@ import org.spongepowered.api.plugin.PluginContainer
 import org.spongepowered.api.service.permission.PermissionService
 import org.spongepowered.api.service.permission.Subject
 import org.spongepowered.api.service.permission.SubjectCollection
+import org.spongepowered.api.service.user.UserStorageService
+import org.spongepowered.api.text.Text
 import org.spongepowered.api.world.World
 import org.spongepowered.api.world.storage.WorldProperties
 import java.math.BigDecimal
@@ -113,12 +109,12 @@ object ValueParsers {
         val url = try {
             URL(arg)
         } catch (e: MalformedURLException) {
-            throw ArgumentParseException(!"Invalid url", e, arg, 0)
+            throw ArgumentParseException(Text.of("Invalid url"), e, arg, 0)
         }
         try {
             url.toURI()
         } catch (e: URISyntaxException) {
-            throw ArgumentParseException(!"Invalid url", e, arg, 0)
+            throw ArgumentParseException(Text.of("Invalid url"), e, arg, 0)
         }
         url
     }
@@ -130,9 +126,9 @@ object ValueParsers {
      */
     val uuid: ValueParser<Any?, UUID> = { _, args, _ ->
         try {
-            args.next().toUUID()
+            UUID.fromString(args.next())
         } catch (e: IllegalArgumentException) {
-            throw args.createError(!"Invalid UUID")
+            throw args.createError(Text.of("Invalid UUID"))
         }
     }
 
@@ -146,7 +142,7 @@ object ValueParsers {
         try {
             BigDecimal(arg)
         } catch (e: NumberFormatException) {
-            throw args.createError(!"Expected a number, but input '$arg' was not")
+            throw args.createError(Text.of("Expected a number, but input '$arg' was not"))
         }
     }
 
@@ -160,7 +156,7 @@ object ValueParsers {
         try {
             BigInteger(arg)
         } catch (e: NumberFormatException) {
-            throw args.createError(!"Expected an integer, but input '$arg' was not")
+            throw args.createError(Text.of("Expected an integer, but input '$arg' was not"))
         }
     }
 
@@ -180,8 +176,11 @@ object ValueParsers {
      */
     val player: ValueParser<Any?, Player> = { _, args, _ ->
         val name = args.next()
-        name.toPlayer()
-            ?: throw args.createError(!"Player '$name' was not found")
+        Sponge.getServer()
+            .getPlayer(name)
+            .orElseThrow {
+                args.createError(Text.of("Player '$name' was not found"))
+            }
     }
 
     /**
@@ -199,8 +198,11 @@ object ValueParsers {
      */
     val user: ValueParser<Any?, User> = { _, args, _ ->
         val name = args.next()
-        name.toUser()
-            ?: throw args.createError(!"User '$name' was not found")
+        Sponge.getServiceManager()
+            .provideUnchecked(UserStorageService::class.java)[name]
+            .orElseThrow {
+                args.createError(Text.of("User '$name' was not found"))
+            }
     }
 
     /**
@@ -210,8 +212,11 @@ object ValueParsers {
      */
     val world: ValueParser<Any?, World> = { _, args, _ ->
         val name = args.next()
-        name.toWorld()
-            ?: throw args.createError(!"Loaded World '$name' was not found")
+        Sponge.getServer()
+            .getWorld(name)
+            .orElseThrow {
+                args.createError(Text.of("Loaded World '$name' was not found"))
+            }
     }
 
     /**
@@ -221,8 +226,11 @@ object ValueParsers {
      */
     val worldProperties: ValueParser<Any?, WorldProperties> = { _, args, _ ->
         val name = args.next()
-        name.toWorldProperties()
-            ?: throw args.createError(!"World '$name' was not found")
+        Sponge.getServer()
+            .getWorldProperties(name)
+            .orElseThrow {
+                args.createError(Text.of("World '$name' was not found"))
+            }
     }
 
     /**
@@ -231,9 +239,12 @@ object ValueParsers {
      * Gives a value of type [PluginContainer].
      */
     val plugin: ValueParser<Any?, PluginContainer> = { _, args, _ ->
-        val plugin = args.next()
-        plugin.toPluginContainer()
-            ?: throw args.createError(!"Plugin '$plugin' was not found")
+        val id = args.next()
+        Sponge.getPluginManager()
+            .getPlugin(id)
+            .orElseThrow {
+                args.createError(Text.of("Plugin '$id' was not found"))
+            }
     }
 
     /**
@@ -243,8 +254,11 @@ object ValueParsers {
      */
     inline fun <reified T : CatalogType> catalogType(): ValueParser<Any?, T> = { _, args, _ ->
         val id = args.next()
-        gameRegistry.getType(id)
-            ?: throw args.createError(!"${T::class.simpleName} '$id' was not found")
+        Sponge.getRegistry()
+            .getType(T::class.java, id)
+            .orElseThrow {
+                args.createError(Text.of("${T::class.simpleName} '$id' was not found"))
+            }
     }
 
     /**
@@ -258,7 +272,7 @@ object ValueParsers {
         return { _, args, _ ->
             val value = args.next().toLowerCase()
             values[value]
-                ?: throw args.createError(!"${T::class.simpleName} '$value' was not found")
+                ?: throw args.createError(Text.of("${T::class.simpleName} '$value' was not found"))
         }
     }
 
@@ -269,9 +283,12 @@ object ValueParsers {
      */
     val subjectCollection: ValueParser<Any?, SubjectCollection> = { _, args, _ ->
         val collection = args.next()
-        serviceManager.require<PermissionService>().getCollection(collection).orElseThrow {
-            args.createError(!"Could not find any subject collection named '$collection'")
-        }
+
+        Sponge.getServiceManager().provideUnchecked(PermissionService::class.java)
+            .getCollection(collection)
+            .orElseThrow {
+                args.createError(Text.of("Could not find any subject collection named '$collection'"))
+            }
     }
 
     /**
@@ -280,19 +297,22 @@ object ValueParsers {
      *
      * Gives a value of type [Subject], requiring a preceding value of type [SubjectCollection].
      */
-    val subject = parser { _, args, collection: SubjectCollection ->
+    val subject: ValueParser<RTuple<SubjectCollection, *>, Subject> = parser { _, args, collection: SubjectCollection ->
         val subject = args.next()
-        collection.getSubject(subject).unwrap()
-            ?: throw args.createError(!"Could not find any ${collection.identifier} subject named '$subject'")
+        collection.getSubject(subject).orElseThrow {
+            args.createError(Text.of("Could not find any ${collection.identifier} subject named '$subject'"))
+        }
     }
 
     fun subjectOf(collectionIdentifier: String): ValueParser<Any?, Subject> {
-        val collection = serviceManager.require<PermissionService>().getCollection(collectionIdentifier).unwrap()
+        val collection: SubjectCollection? = Sponge.getServiceManager()
+            .provideUnchecked(PermissionService::class.java)
+            .getCollection(collectionIdentifier).orElse(null)
 
         return { _, args, _ ->
             val subject = args.next()
-            collection?.getSubject(subject)?.unwrap()
-                ?: throw args.createError(!"Could not find any $collectionIdentifier subject named '$subject'")
+            collection?.getSubject(subject)?.orElse(null)
+                ?: throw args.createError(Text.of("Could not find any $collectionIdentifier subject named '$subject'"))
         }
     }
 
@@ -300,7 +320,9 @@ object ValueParsers {
                               crossinline get: (key: String, previous: P) -> T?) =
         IValueParser<P, T> { _, args, previous ->
             get(args.next(), previous)
-                ?: throw args.createError(!"Argument was not a valid choice.\nValid choices: ${keys().joinToString()}")
+                ?: throw args.createError(
+                    Text.of("Argument was not a valid choice.\nValid choices: ${keys().joinToString()}")
+                )
         }
 
     fun <T> choices(map: Map<String, T>): ValueParser<Any?, T> =
@@ -311,7 +333,7 @@ object ValueParsers {
         { src, args, previous ->
             val parsed = parser(src, args, previous)
             if (parsed !in range) {
-                throw args.createError(!"Input must be between ${range.start} and ${range.endInclusive}")
+                throw args.createError(Text.of("Input must be between ${range.start} and ${range.endInclusive}"))
             }
             parsed
         }
@@ -321,7 +343,7 @@ object ValueParsers {
         parser { _, args ->
             parse(args.next())?.takeIf { it in range }
                 ?: throw args.createError(
-                    !"Expected a ${T::class.simpleName} between ${range.start} and ${range.endInclusive}"
+                    Text.of("Expected a ${T::class.simpleName} between ${range.start} and ${range.endInclusive}")
                 )
         }
 

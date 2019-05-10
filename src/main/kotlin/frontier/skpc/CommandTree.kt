@@ -1,7 +1,6 @@
 package frontier.skpc
 
-import frontier.ske.text.joinWith
-import frontier.ske.text.not
+import frontier.skpc.util.CommandFormatting
 import frontier.skpc.util.RTuple
 import frontier.skpc.util.wrap
 import frontier.skpc.value.Parameter
@@ -30,10 +29,10 @@ sealed class CommandTree<T> {
             val builder = Text.builder()
 
             if (children.isNotEmpty()) {
-                builder.append(children.map { (alias, _) -> !alias }.joinWith(!"|"))
+                builder.append(Text.joinWith(CommandFormatting.PIPE, children.map { (alias, _) -> Text.of(alias) }))
 
                 if (arguments.size == 1) {
-                    builder.append(!"|")
+                    builder.append(CommandFormatting.PIPE)
                 }
             }
 
@@ -46,7 +45,7 @@ sealed class CommandTree<T> {
                     }
                 }.map { it.parameter.usage(src, it.parameter.key) }
 
-                builder.append(sequence.asIterable().joinWith(!" "))
+                builder.append(Text.joinWith(CommandFormatting.SPACE, sequence.asIterable()))
             }
 
             return builder.build()
@@ -69,13 +68,15 @@ sealed class CommandTree<T> {
             if (exec != null) {
                 return exec(previous)
             } else if (children.isNotEmpty() || arguments.isNotEmpty()) {
-                throw args.createError(!"Not enough arguments!").wrap(src, this)
+                throw args.createError(Text.of("Not enough arguments!")).wrap(src, this)
             } else {
                 when (this) {
-                    is Root -> throw CommandException(!"This command has no executor.")
-                    is Child -> throw CommandException(!"Could not find any executor for this subcommand.")
+                    is Root -> throw CommandException(Text.of("This command has no executor."))
+                    is Child -> throw CommandException(Text.of("Could not find any executor for this subcommand."))
                         .wrap(src, this.parent)
-                    is Argument<*, *> -> throw CommandException(!"Could not find any executor for this subcommand.")
+                    is Argument<*, *> -> throw CommandException(
+                        Text.of("Could not find any executor for this subcommand.")
+                    )
                         .wrap(src, this.parent)
                 }
             }
@@ -114,7 +115,7 @@ sealed class CommandTree<T> {
         if (lastError != null) {
             throw lastError.wrap(src, this)
         } else {
-            throw args.createError(!"Failed to parse this subcommand.").wrap(src, this)
+            throw args.createError(Text.of("Failed to parse this subcommand.")).wrap(src, this)
         }
     }
 

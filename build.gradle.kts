@@ -26,8 +26,6 @@ dependencies {
     compileOnly(kotlin("reflect"))
 
     compileOnly("org.spongepowered:spongeapi:7.1.0")
-
-    compileOnly("com.github.TheFrontier:SKE:8618c9d738")
 }
 
 configure<JavaPluginConvention> {

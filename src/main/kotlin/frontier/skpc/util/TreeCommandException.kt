@@ -1,11 +1,11 @@
 package frontier.skpc.util
 
-import frontier.ske.text.*
 import frontier.skpc.CommandTree
 import org.spongepowered.api.command.CommandException
 import org.spongepowered.api.command.CommandSource
 import org.spongepowered.api.text.Text
 import org.spongepowered.api.text.format.TextColors
+import org.spongepowered.api.text.format.TextStyles
 
 fun CommandException.wrap(src: CommandSource, tree: CommandTree<*>): CommandException =
     TreeCommandException(this, src, tree)
@@ -15,12 +15,19 @@ class TreeCommandException(wrapped: CommandException,
                            private val tree: CommandTree<*>) : CommandException(wrapped.text ?: Text.EMPTY, false) {
 
     override fun getText(): Text? {
+        val subcommands = listSubcommands(tree)
+            .takeUnless { it.isEmpty }
+            ?.let { Text.of(TextColors.RED, "\nSubcommands: ", it) }
+
         return Text.of(
-            TextColors.RED, "Exception from ".italic(), TextColors.YELLOW, "/", rootAlias(tree), "\n",
-            TextColors.RED, super.getText() ?: Text.EMPTY, "\n\n",
-            TextColors.RED, "Usage: ", TextColors.YELLOW, "/", usageToRoot(src, tree), " ", argumentsUsage(src, tree),
-            listSubcommands(tree).takeUnless { it.isEmpty }?.let { Text.of(TextColors.RED, "\nSubcommands: ") + it }
-                ?: ""
+            Text.of(TextColors.RED, TextStyles.ITALIC, "Exception from "),
+            Text.of(TextColors.YELLOW, "/", rootAlias(tree)),
+            "\n",
+            Text.of(TextColors.RED, super.getText() ?: Text.EMPTY),
+            "\n\n",
+            Text.of(TextColors.RED, "Usage: "),
+            Text.of(TextColors.YELLOW, "/", usageToRoot(src, tree), " ", argumentsUsage(src, tree)),
+            subcommands ?: Text.EMPTY
         )
     }
 
@@ -49,14 +56,16 @@ class TreeCommandException(wrapped: CommandException,
             return Text.EMPTY
         }
 
-        return generateSequence<CommandTree.Argument<*, *>>(tree.arguments.firstOrNull()) {
+        val sequence = generateSequence<CommandTree.Argument<*, *>>(tree.arguments.firstOrNull()) {
             it.arguments.firstOrNull()
         }.map {
             it.parameter.usage(src, it.parameter.key)
-        }.asIterable().joinWith(!" ")
+        }
+
+        return Text.joinWith(Text.of(" "), sequence.asIterable())
     }
 
     private fun listSubcommands(tree: CommandTree<*>): Text {
-        return tree.children.keys.map { it.yellow() }.joinWith(", ".red())
+        return Text.joinWith(Text.of(TextColors.RED, ", "), tree.children.keys.map { Text.of(TextColors.YELLOW, it) })
     }
 }
