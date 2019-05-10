@@ -1,8 +1,6 @@
 package frontier.skpc.util
 
-import frontier.ske.text.joinWith
-import frontier.ske.text.red
-import frontier.ske.text.yellow
+import frontier.ske.text.*
 import frontier.skpc.CommandTree
 import org.spongepowered.api.command.CommandException
 import org.spongepowered.api.command.CommandSource
@@ -18,9 +16,10 @@ class TreeCommandException(wrapped: CommandException,
 
     override fun getText(): Text? {
         return Text.of(
-            TextColors.RED, "Exception from ", TextColors.YELLOW, "/", rootAlias(tree), "\n",
+            TextColors.RED, "Exception from ".italic(), TextColors.YELLOW, "/", rootAlias(tree), "\n",
             TextColors.RED, super.getText() ?: Text.EMPTY, "\n\n",
-            TextColors.RED, "Usage: ", TextColors.YELLOW, "/", usageToRoot(src, tree), "\n",
+            TextColors.RED, "Usage: ", TextColors.YELLOW, "/", usageToRoot(src, tree), " ", argumentsUsage(src, tree),
+            "\n",
             TextColors.RED, "Subcommands: ", listSubcommands(tree)
         )
     }
@@ -43,6 +42,18 @@ class TreeCommandException(wrapped: CommandException,
                 Text.of(usageToRoot(src, tree.parent), " ", tree.parameter.usage(src, tree.parameter.key))
             }
         }
+    }
+
+    private fun argumentsUsage(src: CommandSource, tree: CommandTree<*>): Text {
+        if (tree.arguments.isEmpty()) {
+            return Text.EMPTY
+        }
+
+        return generateSequence<CommandTree.Argument<*, *>>(tree.arguments.firstOrNull()) {
+            it.arguments.firstOrNull()
+        }.map {
+            it.parameter.usage(src, it.parameter.key)
+        }.asIterable().joinWith(!" ")
     }
 
     private fun listSubcommands(tree: CommandTree<*>): Text {
