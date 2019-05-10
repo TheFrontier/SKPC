@@ -1,12 +1,12 @@
 package frontier.skpc
 
-import frontier.ske.java.util.unwrap
 import frontier.ske.text.joinWith
 import frontier.ske.text.not
 import frontier.skpc.util.RTuple
 import frontier.skpc.util.wrap
 import frontier.skpc.value.Parameter
 import org.spongepowered.api.command.CommandCallable
+import org.spongepowered.api.command.CommandException
 import org.spongepowered.api.command.CommandResult
 import org.spongepowered.api.command.CommandSource
 import org.spongepowered.api.command.args.ArgumentParseException
@@ -61,62 +61,114 @@ sealed class CommandTree<T> {
     internal val arguments = ArrayList<Argument<T, in Any?>>()
     internal var executor: CommandValueExecutor<in T>? = null
 
+    @Throws(CommandException::class)
     fun traverse(src: CommandSource, args: CommandArgs, previous: T): CommandResult {
-        val snapshot = args.snapshot
+        if (!args.hasNext()) {
+            val exec = executor
 
-        // First try to resolve a subcommand.
-
-        val alias = args.nextIfPresent().unwrap()
-        if (alias != null) {
-            val child = children[alias]
-
-            if (child != null) {
-                return child.traverse(src, args, previous)
-            } else if (arguments.isEmpty() && executor == null) {
-                throw args.createError(!"Unknown subcommand: $alias").wrap(src, this)
-            }
-        } else if (arguments.isEmpty() && executor == null) {
-            throw args.createError(!"You must specify a subcommand.").wrap(src, this)
-        } else if (arguments.isNotEmpty())
-
-        args.applySnapshot(snapshot)
-
-        // Otherwise, try to parse an argument.
-
-        val argsIterator = arguments.iterator()
-        while (argsIterator.hasNext()) {
-            val argument = argsIterator.next()
-
-            val parsed = try {
-                argument.parameter.parser(src, args, previous)
-            } catch (e: ArgumentParseException) {
-                if (argsIterator.hasNext()) {
-                    args.applySnapshot(snapshot)
-                    continue
-                } else {
-                    throw e.wrap(src, this)
+            if (exec != null) {
+                return exec(previous)
+            } else if (children.isNotEmpty() || arguments.isNotEmpty()) {
+                throw args.createError(!"Not enough arguments!").wrap(src, this)
+            } else {
+                when (this) {
+                    is Root -> throw CommandException(!"This command has no executor.")
+                    is Child -> throw CommandException(!"Could not find any executor for this subcommand.")
+                        .wrap(src, this.parent)
+                    is Argument<*, *> -> throw CommandException(!"Could not find any executor for this subcommand.")
+                        .wrap(src, this.parent)
                 }
             }
-
-            return argument.traverse(src, args, RTuple(parsed, previous))
         }
 
-        // If all else fails, try to execute the command.
-        if (args.hasNext()) {
-            args.next()
-            throw args.createError(!"Too many arguments!").wrap(src, this)
-        }
+        val snapshot = args.snapshot
 
-        val exec = executor
-        if (exec != null) {
-            return exec(previous)
+        // Search for a child command by alias.
+        val alias = args.next()
+        val child = children[alias]
+
+        if (child != null) {
+            // Found a child command; traverse it's subtree.
+            return child.traverse(src, args, previous)
         } else {
-            throw args.createError(!"No executor found for this subcommand.").wrap(src, this)
+            // Failed to find a child; rollback the CommandArgs.
+            args.applySnapshot(snapshot)
+        }
+
+        // Now try to parse any of the arguments.
+        var lastError: ArgumentParseException? = null
+
+        for (argument in arguments) {
+            try {
+                val parsed = argument.parameter.parser(src, args, previous)
+
+                // Successfully parsed the argument; traverse it's subtree.
+                return argument.traverse(src, args, RTuple(parsed, previous))
+            } catch (e: ArgumentParseException) {
+                // Failed to parse the argument; rollback the CommandArgs and try the next argument.
+                lastError = e
+                args.applySnapshot(snapshot)
+            }
+        }
+
+        if (lastError != null) {
+            throw lastError.wrap(src, this)
+        } else {
+            throw args.createError(!"Failed to parse this subcommand.").wrap(src, this)
         }
     }
 
+    @Throws(CommandException::class)
     fun complete(src: CommandSource, args: CommandArgs, previous: T): List<String> {
-        return emptyList()
+        val completions = HashSet<String>()
+
+        completions += children.keys
+
+        for (argument in arguments) {
+            completions += argument.parameter.completer(src, args, previous)
+        }
+
+        if (args.hasNext()) {
+            val snapshot = args.snapshot
+
+            // CommandArgs still remaining... search for a child command by alias.
+            val alias = args.next()
+            val child = children[alias]
+            if (child != null) {
+                // Found a child command; complete it's subtree.
+                return child.complete(src, args, previous)
+            } else {
+                // Failed to find a child; rollback the CommandArgs.
+                args.applySnapshot(snapshot)
+            }
+
+            // Now try to parse then complete any of the arguments.
+            for (argument in arguments) {
+                try {
+                    val parsed = argument.parameter.parser(src, args, previous)
+
+                    when {
+                        snapshot == args.snapshot -> {
+                            // No CommandArgs were consumed.
+                            args.applySnapshot(snapshot)
+                        }
+                        args.hasNext() -> {
+                            // Parsed argument with CommandArgs remaining; complete it's subtree.
+                            return argument.complete(src, args, RTuple(parsed, previous))
+                        }
+                        else -> {
+                            // Fully parsed the argument with no remaining CommandArgs.
+                            args.applySnapshot(snapshot)
+                        }
+                    }
+                } catch (e: ArgumentParseException) {
+                    // Failed to parse the argument; rollback the CommandArgs and try the next argument.
+                    args.applySnapshot(snapshot)
+                }
+            }
+        }
+
+        return completions.toList()
     }
 
     @PublishedApi
@@ -140,6 +192,22 @@ sealed class CommandTree<T> {
         val argument = Argument(this, parameter)
         arguments += argument as Argument<T, Any?>
         return argument
+    }
+
+    operator fun div(aliases: Aliases): Child<T> {
+        return this@CommandTree.makeChild(aliases)
+    }
+
+    operator fun div(alias: String): Child<T> {
+        return this@CommandTree.makeChild(alias)
+    }
+
+    operator fun div(aliases: List<String>): Child<T> {
+        return this@CommandTree.makeChild(aliases)
+    }
+
+    operator fun <V> div(parameter: Parameter<T, V>): Argument<T, V> {
+        return this@CommandTree.makeArgument(parameter)
     }
 
     infix fun execute(executor: CommandValueExecutor<in T>) {
