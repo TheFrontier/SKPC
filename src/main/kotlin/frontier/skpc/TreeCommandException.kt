@@ -1,6 +1,5 @@
-package frontier.skpc.util
+package frontier.skpc
 
-import frontier.skpc.CommandTree
 import org.spongepowered.api.command.CommandException
 import org.spongepowered.api.command.CommandSource
 import org.spongepowered.api.text.Text
