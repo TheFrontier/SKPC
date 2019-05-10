@@ -19,8 +19,8 @@ class TreeCommandException(wrapped: CommandException,
             TextColors.RED, "Exception from ".italic(), TextColors.YELLOW, "/", rootAlias(tree), "\n",
             TextColors.RED, super.getText() ?: Text.EMPTY, "\n\n",
             TextColors.RED, "Usage: ", TextColors.YELLOW, "/", usageToRoot(src, tree), " ", argumentsUsage(src, tree),
-            "\n",
-            TextColors.RED, "Subcommands: ", listSubcommands(tree).takeUnless { it.isEmpty } ?: "<empty>"
+            listSubcommands(tree).takeUnless { it.isEmpty }?.let { Text.of(TextColors.RED, "\nSubcommands: ") + it }
+                ?: ""
         )
     }
 
