@@ -26,13 +26,13 @@ class RootCallable(
         }
 
         val args = CommandArgs(arguments, tokenizer.tokenize(arguments, false))
-        return root.traverse(source, args, source)
+        return root.traverse(source, args, Unit)
     }
 
     override fun getSuggestions(source: CommandSource, arguments: String,
                                 targetPosition: Location<World>?): List<String> {
         val args = CommandArgs(arguments, tokenizer.tokenize(arguments, true))
-        return root.complete(source, args, source)
+        return root.complete(source, args, Unit)
     }
 
     override fun getShortDescription(source: CommandSource): Optional<Text> {

@@ -3,19 +3,16 @@ package frontier.skpc
 import frontier.skpc.util.CommandFormatting
 import frontier.skpc.util.RTuple
 import frontier.skpc.value.Parameter
-import org.spongepowered.api.command.CommandCallable
-import org.spongepowered.api.command.CommandException
-import org.spongepowered.api.command.CommandResult
-import org.spongepowered.api.command.CommandSource
+import org.spongepowered.api.command.*
 import org.spongepowered.api.command.args.ArgumentParseException
 import org.spongepowered.api.command.args.CommandArgs
 import org.spongepowered.api.text.Text
 
-typealias CommandValueExecutor<T> = (T) -> CommandResult
+typealias CommandValueExecutor<Source, Value> = (Source, Value) -> CommandResult
 
 sealed class CommandTree<T> {
 
-    class Root(val aliases: Aliases) : CommandTree<CommandSource>() {
+    class Root(val aliases: Aliases) : CommandTree<Unit>() {
         constructor(vararg aliases: String, permission: String? = null) :
                 this(Aliases(*aliases, permission = permission))
 
@@ -57,7 +54,7 @@ sealed class CommandTree<T> {
 
     internal val children = HashMap<String, Child<T>>()
     internal val arguments = ArrayList<Argument<T, in Any?>>()
-    internal var executor: CommandValueExecutor<in T>? = null
+    internal var executor: CommandValueExecutor<in CommandSource, in T>? = null
 
     @Throws(CommandException::class)
     fun traverse(src: CommandSource, args: CommandArgs, previous: T): CommandResult {
@@ -65,7 +62,7 @@ sealed class CommandTree<T> {
             val exec = executor
 
             if (exec != null) {
-                return exec(previous)
+                return exec(src, previous)
             } else if (children.isNotEmpty() || arguments.isNotEmpty()) {
                 throw args.createError(Text.of("Not enough arguments!")).wrap(src, this)
             } else {
@@ -88,6 +85,11 @@ sealed class CommandTree<T> {
         val child = children[alias]
 
         if (child != null) {
+            // Check if the source can use this child command.
+            if (child.aliases.permission != null && !src.hasPermission(child.aliases.permission)) {
+                throw CommandPermissionException()
+            }
+
             // Found a child command; traverse it's subtree.
             return child.traverse(src, args, previous)
         } else {
@@ -210,7 +212,7 @@ sealed class CommandTree<T> {
         return this@CommandTree.makeArgument(parameter)
     }
 
-    infix fun execute(executor: CommandValueExecutor<in T>) {
+    infix fun execute(executor: CommandValueExecutor<in CommandSource, in T>) {
         this.executor = executor
     }
 
@@ -234,7 +236,7 @@ sealed class CommandTree<T> {
         return this@CommandTree.makeChild(this@div).makeArgument(parameter)
     }
 
-    infix fun Aliases.execute(executor: CommandValueExecutor<in T>) {
+    infix fun Aliases.execute(executor: CommandValueExecutor<in CommandSource, in T>) {
         this@CommandTree.makeChild(this@execute).execute(executor)
     }
 
@@ -258,7 +260,7 @@ sealed class CommandTree<T> {
         return this@CommandTree.makeChild(this@div).makeArgument(parameter)
     }
 
-    infix fun String.execute(executor: CommandValueExecutor<in T>) {
+    infix fun String.execute(executor: CommandValueExecutor<in CommandSource, in T>) {
         this@CommandTree.makeChild(this@execute).execute(executor)
     }
 
@@ -282,7 +284,7 @@ sealed class CommandTree<T> {
         return this@CommandTree.makeChild(this@div).makeArgument(parameter)
     }
 
-    infix fun List<String>.execute(executor: CommandValueExecutor<in T>) {
+    infix fun List<String>.execute(executor: CommandValueExecutor<in CommandSource, in T>) {
         this@CommandTree.makeChild(this@execute).execute(executor)
     }
 
@@ -306,7 +308,7 @@ sealed class CommandTree<T> {
         return this@CommandTree.makeArgument(this@div).makeArgument(parameter)
     }
 
-    infix fun <V> Parameter<T, V>.execute(executor: CommandValueExecutor<in RTuple<V, T>>) {
+    infix fun <V> Parameter<T, V>.execute(executor: CommandValueExecutor<in CommandSource, in RTuple<V, T>>) {
         this@CommandTree.makeArgument(this@execute).execute(executor)
     }
 
