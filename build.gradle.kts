@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.thefrontier"
-version = "0.2.0"
+version = "0.3.0"
 
 repositories {
     mavenCentral()
@@ -16,7 +16,6 @@ repositories {
         setUrl("https://jitpack.io")
     }
     maven {
-        name = "sponge"
         setUrl("https://repo.spongepowered.org/maven")
     }
 }
